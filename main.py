@@ -4,30 +4,42 @@ import os
 import chainlit as cl
 from pydantic import BaseModel, Field
 from pydantic.types import SecretStr
-
 from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
+from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel,TResponseInputItem,function_tool,RunContextWrapper,set_default_openai_client
+from agents.run import RunConfig
+from browser_use import Agent as BrowserAgent, Browser 
 
 # from maxim import Maxim,Config
 # from maxim.logger.openai.agents import MaximOpenAIAgentsTracingProcessor
 
 load_dotenv()
 
-from agents import (
-    Agent,
-    RunContextWrapper,
-    Runner,
-    add_trace_processor,
-    function_tool,
-    TResponseInputItem
-)
-
-from browser_use import Agent as BrowserAgent, Browser
-
 # logger = Maxim(Config()).logger()
 # add_trace_processor(MaximOpenAIAgentsTracingProcessor(logger))
 
-openai_api_key = os.getenv("OPENAI_API_KEY")
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+
+# Check if the API key is present; if not, raise an error
+if not gemini_api_key:
+    raise ValueError("GEMINI_API_KEY is not set. Please ensure it is defined in your .env file.")
+
+#Reference: https://ai.google.dev/gemini-api/docs/openai
+external_client = AsyncOpenAI(
+    api_key=gemini_api_key,
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+)
+
+model = OpenAIChatCompletionsModel(
+    model="gemini-2.0-flash",
+    openai_client=external_client
+)
+
+config = RunConfig(
+    model=model,
+    model_provider=external_client,
+    tracing_disabled=True
+)
 
 
 ## CONTEXT
@@ -40,7 +52,6 @@ class MobileComparisonContext(BaseModel):
     comparisonMarkdown: str = Field(default="", description="A structured markdown table comparing both phone models")
 
 
-
 ## TOOLS
 
 @function_tool(
@@ -50,8 +61,7 @@ class MobileComparisonContext(BaseModel):
 async def online_search(
     context: RunContextWrapper[MobileComparisonContext], 
     query: str) -> str:
-    api_key = os.getenv("GEMINI_API_KEY")
-    llm = ChatGoogleGenerativeAI(model='gemini-2.0-flash-exp', api_key=SecretStr(api_key))
+    llm = ChatGoogleGenerativeAI(model='gemini-2.0-flash-exp', api_key=SecretStr(gemini_api_key))
     agent = BrowserAgent(
         task=f"Find detailed specifications and features of {query} and return structured data.",
         llm=llm,
@@ -83,6 +93,7 @@ online_search_agent = Agent[MobileComparisonContext](
     2. Save the retrieved information in the context.
     """,
     tools=[online_search],
+    model=model
 )
 
 # 2. Triage Agent
@@ -101,6 +112,7 @@ triage_agent = Agent[MobileComparisonContext](
     
     """,
     handoffs=[online_search_agent],
+    model=model
 )
 
 
@@ -137,9 +149,9 @@ async def on_message(message: cl.Message):
 
     await msg.update()
 
-    # Optionally save result
-    with open("comparison.md", "w", encoding="utf-8") as f:
-        f.write(markdown)
+    # # Optionally save result
+    # with open("comparison.md", "w", encoding="utf-8") as f:
+    #     f.write(markdown)
 
 
 

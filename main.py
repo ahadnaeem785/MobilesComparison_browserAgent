@@ -101,19 +101,18 @@ triage_agent = Agent[MobileComparisonContext](
     name="Triage Agent",
     handoff_description="An agent that delegates tasks to the correct sub-agents.",
     instructions="""
-    You are a Triage Agent. Your goal is to coordinate the process of phone model comparison. You have to 
-    delegate tasks to the Online Search Agent. 
+    You are a Triage Agent. Your goal is to coordinate the process of phone model comparison.
     # Sequence:
     1. Receive two phone model names from the user.
     2. Handoff the first phone model to the `Online Search Agent`.
     3. Handoff the second phone model to the `Online Search Agent`.
-    4. Return the proper comparison in table form in markdown format string.
-    
-    
+    4. Combine the extracted information from both models and return a markdown comparison table.
+    Use the phoneModel1FeatureData and phoneModel2FeatureData from context to create a clean markdown table comparing.
     """,
     handoffs=[online_search_agent],
     model=model
 )
+
 
 
 
@@ -158,7 +157,18 @@ async def on_message(message: cl.Message):
 
 
 
-# ## RUNNER
+
+
+
+
+
+
+
+
+
+
+
+# # RUNNER
 # async def main():
 #     # Hardcoded phone models
 #     context = MobileComparisonContext(
